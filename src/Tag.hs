@@ -61,7 +61,7 @@ bestMatch vocab tfidfs submission corpus = chooseBest $ (traceSortShow' $ map si
         similarity (name, gameDoc) = (name, sim)
             where
                 sim = vectorCosineSimilarity v1 v2
-                (v1, v2) = getFeatureVectors vocab (traceShow' doc1) doc2
+                (v1, v2) = getFeatureVectors vocab doc1 doc2
                 [doc1, doc2] = map Text.unwords [snd submission, gameDoc]
         chooseBest xs = choose' $ maximumBy (comparing snd) xs
             where
