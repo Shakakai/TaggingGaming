@@ -1,8 +1,8 @@
 {-# LANGUAGE UnicodeSyntax, OverloadedStrings #-}
 
-import Index hiding (Token)
+import Index
 import Document
-import Similarity
+import Similarity (vectorCosineSimilarity)
 import Data.Ord
 import Data.List
 import Control.Monad
@@ -32,40 +32,54 @@ readStoplist path =
 
 corpusFilesPreprocessed stopSet dir = do
         paths <- readDirectory dir
-        fmap (map (second (removeStopWords . preprocessDocument))) $ mapM nameAndContents paths
+        fmap (map (first Text.pack >>> second preprocessDocument)) $ mapM nameAndContents paths
     where
         removeStopWords = filter (\x → not $ x `Set.member` stopSet)
 
 preprocessDocument = tokenise . clean . toLower
 
-tf = histogram
-
-mkTfidfs contents = (\word docname → calculateTfidf word docname)
+mkTfidfs idf contents = (\word docname → max 0 $ calculateTfidf word docname)
     where
-        n = fromIntegral $ length contents
         tfs = Map.fromList $ map (second histogram) contents
         tf word docname = case Map.lookup docname tfs of
             Nothing → 0
             Just tfMap → Map.findWithDefault 0 word tfMap
-        index = buildIndex contents
-        df word = fromIntegral $ Map.findWithDefault 0 word index
-        idf word = log (n/(df word))
         calculateTfidf word docname = (tf word docname) * (idf word)
+        
+mkIdf contents = (\word → calculateIdf word)
+    where
+        calculateIdf word   | df' == 0 = 2**32
+                            | otherwise = log (n / df')
+            where df' = df word
+        df word = fromIntegral $ Map.findWithDefault 0 word index
+        index = buildIndex contents
+        n = fromIntegral $ length contents
 
-tfidfVector vocab tfidfs d = V.fromList $
-    map snd $ zip [1..] $ map (\w -> (tfidfs w d)) $
+tfidfVector vocab tfidfs (name, d) = V.fromList $
+    map snd $ zip [1..] $ map (\w -> (tfidfs w name)) $
     Set.toList vocab
 
-bestMatch vocab tfidfs submission corpus = chooseBest $ (traceSortShow' $ map similarity corpus)
+bestMatch vocab idf tfidfs submission corpus =
+        chooseBest $ map similarity corpus
     where
-        similarity (name, gameDoc) = (name, sim)
+        similarity gameDoc@(name, _) = (name, sim)
             where
-                sim = vectorCosineSimilarity v1 v2
-                (v1, v2) = getFeatureVectors vocab doc1 doc2
-                [doc1, doc2] = map Text.unwords [snd submission, gameDoc]
-        chooseBest xs = choose' $ maximumBy (comparing snd) xs
+                sim = vectorCosineSimilarity submissionVector gameVector
+                submissionVector =
+                    denseFeaturesFromDocument vocab $
+                    Map.map (max 0.0) $
+                    Map.mapWithKey (\word tf → tf * (idf word)) $
+                    histogram $ snd submission
+                gameVector = tfidfVector vocab tfidfs gameDoc
+        chooseBest xs = choose' m (zscore $ snd m) (zscore $ snd m2)
             where
-                choose' (x, sim) = if sim > 0.8
+                m = maximumBy (comparing snd) xs
+                m2 = maximumBy (comparing snd) (delete m xs)
+                zscore x = (x - mean)/stddev
+                stddev = sqrt $ sum $ map (\x → (mean - x) **2) xs'
+                mean = (sum xs') / (fromIntegral $ length xs')
+                xs' = map snd xs
+                choose' (x, sim) zscore1 zscore2 = if zscore1/zscore2 > 1.05
                     then Just ("http://en.wikipedia.org/wiki/" <> x)
                     else Nothing
 
@@ -76,9 +90,10 @@ main = do
     let vocab = Set.union wikipediaVocabulary redditVocabulary
     gameCorpusPreprocessed <- corpusFilesPreprocessed stopSet "../game_corpus"
     redditCorpusPreprocessed <- corpusFilesPreprocessed stopSet "../reddit_examples"
+    let idf = mkIdf  (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
     let tfidfs =
-            mkTfidfs $ zip [0..] $ map snd (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
+            mkTfidfs idf (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
     forM_ redditCorpusPreprocessed $ \submission → do
-        case bestMatch vocab tfidfs submission gameCorpusPreprocessed of
+        case bestMatch vocab idf tfidfs submission gameCorpusPreprocessed of
             Nothing → putStrLn "No luck"
-            Just x → putStrLn $ dropExtension x
+            Just x → putStrLn $ dropExtension . Text.unpack $ x
