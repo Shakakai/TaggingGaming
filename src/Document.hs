@@ -21,7 +21,7 @@ import System.FilePath hiding (normalise)
 import System.IO.Unsafe
 import Control.Parallel.Strategies
 import Control.DeepSeq
-import qualified NLP.Stemmer as Stemmer
+-- import qualified NLP.Stemmer as Stemmer
 import Data.Array.Unboxed
 import qualified Data.Vector.Unboxed as V
 
@@ -135,8 +135,8 @@ document :: Vocabulary -> DocText -> Document
 document vocabulary t = (histogram . (standardiseUnseen vocabulary) . tokenise . clean . toLower) t
 
 -- | Performs stemming with the Snowball stemmer
-stemWords :: Tokens -> Tokens
-stemWords = fmap Text.pack . (Stemmer.stemWords Stemmer.English) . (fmap Text.unpack)
+-- stemWords :: Tokens -> Tokens
+-- stemWords = fmap Text.pack . (Stemmer.stemWords Stemmer.English) . (fmap Text.unpack)
     
 -- | Reads and returns the contents of a file (decoded [potentially lossily] to UTF-8) and keeps its name
 nameAndContents :: FilePath -> IO (FilePath, DocText)
