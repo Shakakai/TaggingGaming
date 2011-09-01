@@ -46,7 +46,7 @@ mkIdf contents = (\word → calculateIdf word)
         n = fromIntegral $ length contents
 
 tfidfVector vocab tfidfs (name, d) = V.fromList $
-    map snd $ zip [1..] $ map (\w -> (tfidfs w name)) $
+    map snd $ zip [1..] $ map (\w → (tfidfs w name)) $
     Set.toList vocab
 
 bestMatch idf tfidfs submission corpus =
@@ -78,8 +78,8 @@ bestMatch idf tfidfs submission corpus =
                     else Nothing
 
 main = do
-    gameCorpusPreprocessed <- corpusFilesPreprocessed "../game_corpus"
-    redditCorpusPreprocessed <- corpusFilesPreprocessed "../reddit_examples"
+    gameCorpusPreprocessed  ← corpusFilesPreprocessed "../game_corpus"
+    redditCorpusPreprocessed  ← corpusFilesPreprocessed "../reddit_examples"
     let idf = mkIdf (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
     let tfidfs =
             mkTfidfs idf (gameCorpusPreprocessed ++ redditCorpusPreprocessed)

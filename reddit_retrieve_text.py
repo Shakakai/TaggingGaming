@@ -2,8 +2,8 @@ import urllib2, json
 
 
 URLS = [
-"http://www.reddit.com/r/gaming/comments/irqq9/anyone_else_think_that_a_feudal_japan_themed/.json",
-"http://www.reddit.com/r/gaming/comments/is1zp/ok_reddit_what_game_drove_you_absolutely_fucking/.json",
+"http://www.reddit.com/r/gaming/comments/it7x0/what_left_for_dead_has_taught_me_in_case_there_is/.json",
+"http://www.reddit.com/r/gaming/comments/it20m/using_the_stagecoach_as_a_boat_in_red_dead/.json"
 ]
 
 
