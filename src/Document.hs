@@ -24,6 +24,7 @@ import Control.DeepSeq
 -- import qualified NLP.Stemmer as Stemmer
 import Data.Array.Unboxed
 import qualified Data.Vector.Unboxed as V
+import Data.String.Combinators ((<+>))
 
 -- The following are type aliases so we have some compile-time type checking
 type DocText = Text.Text
@@ -123,6 +124,16 @@ histogram = foldl' (\m w -> Map.insertWith' (+) w 1 m) Map.empty
 tokenise :: DocText -> Tokens
 tokenise = Text.words
 
+-- | Example: generateNGramFeatures $ Text.words "This is only a test" => ["This","is","only","a","test","This is","is only","only a","a test","This is only","is only a","only a test"]. IMO, "test" followed by end-of-sentence or end-of-document delimeters has just as much information as the unigram.
+generateNGramFeatures tokens = concatMap upToNGrams [1..3]
+    where
+        upToNGrams n    | n <= 0 = []
+                        | n == 1 = tokens
+                        | otherwise = zipWith (<+>) upToNGrams' (tailN (n - 1) tokens)
+                            where upToNGrams' = upToNGrams (n - 1)
+        tailN n ls  | n <= 1 = tail ls
+                    | otherwise = tail $ tailN (n - 1) ls
+
 -- | Converts text to lower case
 toLower :: DocText -> DocText
 toLower = Text.toLower
@@ -141,8 +152,15 @@ document vocabulary t = (histogram . (standardiseUnseen vocabulary) . tokenise .
 -- | Reads and returns the contents of a file (decoded [potentially lossily] to UTF-8) and keeps its name
 nameAndContents :: FilePath -> IO (FilePath, DocText)
 nameAndContents path = do
-    bs <- B.readFile path
-    return (takeFileName path, decodeUtf8With lenientDecode bs)
+        bs <- B.readFile path
+        return (filename, (filename' <+> (decodeUtf8With lenientDecode bs)))
+    where
+        filename = dropExtension $ takeFileName path
+        filename' = Text.pack $ replaceUnderscores filename
+
+replaceUnderscores [] = []
+replaceUnderscores (c:cs)   | c == '_' = ' ':(replaceUnderscores cs)
+                            | otherwise = c:(replaceUnderscores cs)
 
 -- | Returns the filenames of each file in a directory
 readDirectory dir = liftM (map ((</>) dir) . filter (not . (isPrefixOf "."))) $ getDirectoryContents dir

@@ -6,7 +6,7 @@ import Similarity (vectorCosineSimilarity)
 import Data.Ord
 import Data.List
 import Control.Monad
-import Control.Arrow
+import Control.Arrow hiding ((<+>))
 import Control.Applicative
 import qualified Data.Text as Text
 import qualified Data.Map as Map
@@ -26,7 +26,7 @@ corpusFilesPreprocessed dir = do
         fmap (map (first Text.pack >>> second preprocessDocument)) $
             mapM nameAndContents paths
 
-preprocessDocument = tokenise . clean . toLower
+preprocessDocument = generateNGramFeatures . tokenise . clean . toLower
 
 mkTfidfs idf contents = (\word docname → max 0 $ calculateTfidf word docname)
     where
@@ -73,9 +73,10 @@ bestMatch idf tfidfs submission corpus =
                 stddev = sqrt $ sum $ map (\x → (mean - x) **2) xs'
                 mean = (sum xs') / (fromIntegral $ length xs')
                 xs' = map snd xs
-                choose' (x, sim) zscore1 zscore2 = if zscore1/zscore2 > 1.5
-                    then Just ("http://en.wikipedia.org/wiki/" <> x)
-                    else Nothing
+                choose' (x, sim) zscore1 zscore2 = if ratio > 1.5
+                        then Just ("http://en.wikipedia.org/wiki/" <> x)
+                        else Nothing
+                    where ratio = zscore1/zscore2
 
 main = do
     gameCorpusPreprocessed  ← corpusFilesPreprocessed "../game_corpus"
@@ -83,7 +84,8 @@ main = do
     let idf = mkIdf (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
     let tfidfs =
             mkTfidfs idf (gameCorpusPreprocessed ++ redditCorpusPreprocessed)
-    forM_ redditCorpusPreprocessed $ \submission → do
+    forM_ redditCorpusPreprocessed $ \submission@(name, _) → do
         case bestMatch idf tfidfs submission gameCorpusPreprocessed of
-            Nothing → putStrLn "No luck"
-            Just x → putStrLn $ dropExtension . Text.unpack $ x
+            Nothing → putStrLn ((replaceUnderscores (Text.unpack name)) ++ ": No luck")
+            Just x → putStrLn $ (replaceUnderscores (Text.unpack name)) <+> ": " <+>
+                (dropExtension . Text.unpack $ x)
